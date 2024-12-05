@@ -1,4 +1,5 @@
 mycvf/
 __pycache__/
 *.pyc
-graphs/
+*.log
+*.csv
