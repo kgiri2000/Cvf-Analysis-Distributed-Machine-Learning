@@ -6,7 +6,7 @@ import itertools
 import pandas as pd
 
 class Dijkstra:
-    def __init__(self, graph_path, result_path):
+    def __init__(self, graph_path, result_path, max_predict):
         self.graph = self.read_graph(graph_path)
         self.graph_name = os.path.splitext(os.path.basename(graph_path))[0]
         self.result_path = result_path
@@ -15,6 +15,7 @@ class Dijkstra:
         self.num_of_nodes = len(self.nodes)
         self.nodes_in_num = list(range(self.num_of_nodes))
         self.dataset = []
+        self.max_predict = max_predict
 
         #Only has three colors
         self.colors = list(range(3))
@@ -168,13 +169,13 @@ class Dijkstra:
 
     def generate_dataset(self):
         node_count = self.num_of_nodes
+        max_pred =  self.max_predict + 2
+        #if max is 11, vector size = 11+ 1+1 = 13 -1 = 12(starting from 0)
         for config, values in self.program_transitions_rank.items():
-            row = list(config)
-            row += [node_count]
-            row += [-1] * (14 - len(row)-2)
-            row += [values["Ar"]]
-            row += [values["M"]]
-
+            row = list(config) #3 [0,0,0]
+            row += [node_count] #4 [0,0,0,3]
+            row += [-1] * (max_pred-len(row)-1) # 13 - 4 -1 = 8 [0,0,0,3,-1,-1 ,-1,-1,-1,-1]
+            row += [values["Ar"]] #
             self.dataset.append(row)
 
     def analyse(self):

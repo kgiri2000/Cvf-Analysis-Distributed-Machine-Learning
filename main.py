@@ -1,102 +1,78 @@
 import os
-from src.dijkstra import Dijkstra
-from src.dataset import save_dataset
-from src.feed_forward import feed_forward
-from src.utils import ensure_directory
+
+import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
+from src.utils import ensure_directory
 
+def load_artifacts(model_path, scaler_path):
+    # Load the model
+    with open(model_path, 'rb') as model_file:
+        model = pickle.load(model_file)
+    
+    # Load the scaler
+    with open(scaler_path, 'rb') as scaler_file:
+        scaler_X = pickle.load(scaler_file)
+    
+    return model, scaler_X
+
+def predict_and_analyze(true_dataset, vector_size, model, scaler_X):
+    ensure_directory("datasets")
+    ensure_directory("plots")
+    
+    # Load the dataset for prediction
+    predict_file_path = pd.read_csv(true_dataset)
+    to_predict_file = predict_file_path.iloc[:, :vector_size - 1].values  # Input features
+    to_predict_file_scaled = scaler_X.transform(to_predict_file)
+    
+    # Make predictions
+    predictions = model.predict(to_predict_file_scaled)
+    predict_file_path["Ar"] = predictions
+    to_predict_node = ''.join(filter(str.isdigit, os.path.splitext(true_dataset)[0]))
+    predicted_results_file = f"datasets/predict_dataset{to_predict_node}_using{vector_size - 2}.csv"
+    predict_file_path.to_csv(predicted_results_file, index=False)
+    
+    # Analyze predictions
+    predicted_data = pd.read_csv(predicted_results_file)
+    predicted_data['Ar'] = predicted_data['Ar'].apply(lambda x: int(x))
+    ar_counts = predicted_data['Ar'].value_counts()
+    ar_counts_df = ar_counts.reset_index()
+    ar_counts_df.columns = ["Ar", "Count"]
+    ar_counts_df.to_csv(f'datasets/predicted_ar_counts{to_predict_node}_using{vector_size-2}.csv', index=False)
+    
+    # Load true data
+    true_data = pd.read_csv(true_dataset)
+    true_data.rename(columns={true_data.columns[-1]: 'Ar'}, inplace=True)
+    
+    # Compute counts
+    predicted_ar_counts = ar_counts
+    true_ar_counts = true_data['Ar'].value_counts()
+    
+    # Plot comparison
+    plt.figure(figsize=(10, 6))
+    plt.scatter(predicted_ar_counts.index, predicted_ar_counts.values, color='blue', label='Predicted Ar Counts')
+    plt.scatter(true_ar_counts.index, true_ar_counts.values, color='red', label='True Ar Counts')
+    plt.xlabel('Rank')
+    plt.ylabel('Count')
+    plt.title('Comparison of Predicted and True Ar Counts')
+    plt.legend()
+    plt.savefig('plots/comparison_counts.png')
+    plt.show()
+    print(f"Predictions and analysis complete. Results saved to {predicted_results_file}.")
 
 if __name__ == "__main__":
-    ensure_directory("results")
-    ensure_directory("graphs")
-
-    # Generate dataset
-    file_path = "results/dataset.csv"
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-    all_graphs = [f"graphs/dijkstra_{i}.txt" for i in range(3, 11)]
-    for graph_path in all_graphs:
-        result_path = "results"
-        cvf = Dijkstra(graph_path, result_path)
-        cvf.analyse()
-        save_dataset(cvf.dataset, file_path, append=True)
-
-    # Train machine learning model
-    model, history = feed_forward(file_path)
-    predict_file_path = pd.read_csv("dataset11.csv")
-    predict_file = predict_file_path.iloc[:, :12].values  # First 12 columns are the input features
-    #predict_file_scaled = scaler_X.fit_transform(predict_file)
-    predictions = model.predict(predict_file)
-    Ar_predictions = predictions[:, 0]
-    M_predictions = predictions[:, 1]
-    predict_file_path["Ar"] = Ar_predictions
-    predict_file_path["M"] = M_predictions
-    predict_file_path.to_csv("dataset_predict11.csv", index=False)
+    # Paths for the model and scaler
+    model_path = "models/trained_model.pkl"
+    scaler_path = "models/scaler.pkl"
     
+    # Load the saved artifacts
+    model, scaler_X = load_artifacts(model_path, scaler_path)
     
+    # Prediction configuration
+    true_dataset = "datasets/true_dataset11.csv"
+    data  = pd.read_csv(true_dataset)
+    num_columns = data.shape[1]
+    vector_size = num_columns
     
-    # Load the predicted results from the CSV file
-    predicted_results_file = 'dataset_predict11.csv'
-    predicted_data = pd.read_csv(predicted_results_file)
-    # Convert to int and ensure negative values are replaced with their absolute values
-    predicted_data['Ar'] = predicted_data['Ar'].apply(lambda x: abs(int(x)))  
-    predicted_data['M'] = predicted_data['M'].apply(lambda x: abs(int(x)))
-
-    # predicted_data['Ar'] = predicted_data['Ar'].apply(lambda x: max(0, int(x)))  # Convert to int, and if < 0, set to 0
-    # predicted_data['M'] = predicted_data['M'].apply(lambda x: max(0, int(x)))    # Convert to int, and if < 0, set to 0
-
-    #Count Ar and M and plot graph
-    ar_counts = predicted_data['Ar'].value_counts()
-    m_counts = predicted_data['M'].value_counts()
-    
-    # Filter 'Ar' counts to remove values with count > 25000
-    ar_counts = ar_counts[ar_counts <= 2000]
-
-    # Filter 'M' counts to remove values with count > 25000
-    m_counts = m_counts[m_counts <= 2000]
-
-
-    # Create the dot plot
-    plt.figure(figsize=(10, 6))
-
-    # Plot dots for 'Ar'
-    plt.scatter(ar_counts.index, ar_counts.values, color='blue', label='Ar Counts')
-
-    # Plot dots for 'M'
-    plt.scatter(m_counts.index, m_counts.values, color='red', label='M Counts')
-
-    # Add labels and legend
-    plt.xlabel('Rank')
-    plt.ylabel('Count')
-    plt.title('Counts of Ar and M Ranks')
-    plt.savefig('plots/predicted_counts.png')
-    plt.legend()
-    
-    # Load the predicted results from the CSV file
-    true_results_file = 'dataset11.csv'
-    true_data = pd.read_csv(true_results_file)
-
-    #Count Ar and M and plot graph
-    true_data.columns.values[-2] = 'Ar'
-    true_data.columns.values[-1] = 'M'
-    ar_counts = true_data['Ar'].value_counts()
-    m_counts = true_data['M'].value_counts()
-
-    # Create the dot plot
-    plt.figure(figsize=(10, 6))
-
-    # Plot dots for 'Ar'
-    plt.scatter(ar_counts.index, ar_counts.values, color='blue', label='Ar Counts')
-    # Plot dots for 'M'
-    plt.scatter(m_counts.index, m_counts.values, color='red', label='M Counts')
-    plt.xlabel('Rank')
-    plt.ylabel('Count')
-    plt.title('Counts of Ar and M Ranks')
-    plt.savefig('plots/true_counts.png')
-    plt.legend()
-
-        
-        
-
+    # Perform prediction and analysis
+    predict_and_analyze(true_dataset, vector_size, model, scaler_X)

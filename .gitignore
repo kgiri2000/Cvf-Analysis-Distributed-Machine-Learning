@@ -1,4 +1,5 @@
 mycvf/
+models/
 __pycache__/
 *.pyc
 *.log
