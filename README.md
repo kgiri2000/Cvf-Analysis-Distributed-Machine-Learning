@@ -6,9 +6,9 @@ pip install -r requirements.txt
 
 # Making dataset:
 Default:
-Dataset(node n = 3 to node n = 10)
-Dataset for actual node n = 11(For prediction)
-Dataset for actual node n = 10( For predictions)
+## Dataset(node n = 3 to node n = 10)
+## Dataset for actual node n = 11(For prediction)
+## Dataset for actual node n = 10( For predictions)
 
 >python generatedataset.py
 
