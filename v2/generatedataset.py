@@ -1,8 +1,16 @@
 import os
+import pandas as pd
 from src.dijkstra import Dijkstra
-from src.dataset import save_dataset
+
 #Can create the whole dataset from  start node to max node
 #Also can create the dataset for specific node number
+
+def save_dataset(dataset, file_path, append=False):
+    df = pd.DataFrame(dataset)
+    if append and os.path.exists(file_path):
+        df.to_csv(file_path, mode='a', header=False, index=False)
+    else:
+        df.to_csv(file_path, index=False)
 
 def generatedataset(*args):
 
@@ -35,6 +43,8 @@ def generatedataset(*args):
         cvf = Dijkstra(graph_path, result_path, max_pred)
         cvf.analyse()
         res = save_dataset(cvf.dataset, file_path,append=True )
+
+    
     else:
         print("Incorrect Input")
         return 0
@@ -46,10 +56,10 @@ def generatedataset(*args):
         
 if __name__ == "__main__":
     generatedataset(3,10,11)
-    generatedataset(11)
+
     #Generating dataset for graph node = 10 for prediction
     # print("Generating Dataset")
-    # generatedataset(10,11)
+    generatedataset(11,11)
 
                                                                                                              
 
