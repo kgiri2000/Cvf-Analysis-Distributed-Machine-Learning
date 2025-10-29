@@ -30,6 +30,8 @@ def main():
                         help = "Path to the model")
     parser.add_argument("--scaler_path", default="models/scaler.pkl",
                         help = "Path to the scaler_X")
+    parser.add_argument("--cluster", nargs="+", help = "List of the worker")
+    parser.add_argument("--rank", type=int, help = "Worker index")
 
     #Distributed
 
