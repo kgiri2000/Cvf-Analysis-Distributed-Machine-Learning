@@ -2,9 +2,9 @@ import os
 import json
 import socket
 import tensorflow as tf
-from src.data_loader import load_dataset
-from src.model_builder import build_feed_forward_model
-from src.utilis import save_models
+from data_loader import load_dataset
+from model_builder import build_feed_forward_model
+from utilis import save_models
 
 def setup_tf_config(cluster_hosts=None, rank=None):
     #Automatically set TF_CONFIG
