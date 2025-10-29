@@ -4,6 +4,7 @@ from src.model_builder import build_feed_forward_model
 from src.trainer import train_model, evaluate_model
 from src.predictor import predict_and_analyze
 from src.utilis import save_models, result, load_models, ensure_dir
+from src.trainer_distributed import train_distributed
 
 #Torch imports
 import torch
@@ -57,6 +58,19 @@ def main():
         history = train_model_torch(model, optimizer, criterion, X_train, y_train, X_test, y_test, epochs=args.epochs, batch_size=args.batch_size)
         evaluate_model_torch(model, X_test, y_test, criterion)
         save_models(model, scaler_X, history, "models")
+
+    elif args.mode == "distributed":
+        model, history, scaler_X = train_distributed(
+            dataset_path=args.data,
+            input_size=args.input_size,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            cluster_hosts=args.cluster,
+            rank=args.rank
+        )
+        ensure_dir("models/distributed")
+        save_models(model, scaler_X, history, "models/distributed")
 
 
     
