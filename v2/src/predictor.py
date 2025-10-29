@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import pandas as pd
-from utilis import ensure_dir
+from src.utilis import ensure_dir
 
 def load_model_and_scalar(model_dir, scaler_path):
     model_dir = "models/feed_forward_model"

@@ -5,10 +5,16 @@ from src.trainer import train_model, evaluate_model
 from src.predictor import predict_and_analyze
 from src.utilis import save_models, result, load_models, ensure_dir
 
+#Torch imports
+import torch
+
+from src.model_builder_torch import build_feed_forward_model_torch
+from src.trainer_torch import train_model_torch, evaluate_model_torch
+
 
 def main():
     parser = argparse.ArgumentParser(description="Feed Forward Neural Network Trainer")
-    parser.add_argument("--mode", choices = ["local", "distributed", "predict"], default="local",
+    parser.add_argument("--mode", choices = ["local", "distributed", "predict","local-torch"], default="local",
                         help = "Training or prediction mode" )
     parser.add_argument("--data", default="datasets/dataset3_10_11.csv",
                         help = "Path to dataset")
@@ -43,6 +49,19 @@ def main():
         model, scaler_X = load_models(args.model_path, args.scaler_path)
         #true_data = load_csv(args.true_data)
         predict_and_analyze(args.true_data, args.input_size, model, scaler_X)
+
+    elif args.mode == "local-torch":
+        print("Running PyTorch FNN ")
+        X_train, X_test, y_train,y_test, scaler_X = load_dataset(args.data, args.input_size)
+        model, optimizer, criterion = build_feed_forward_model_torch( X_train.shape[1], y_train.shape[1], args.learning_rate)
+        history = train_model_torch(model, optimizer, criterion, X_train, y_train, X_test, y_test, epochs=args.epochs, batch_size=args.batch_size)
+        evaluate_model_torch(model, X_test, y_test, criterion)
+        save_models(model, scaler_X, history, "models")
+
+
+    
+
+
 
 
 

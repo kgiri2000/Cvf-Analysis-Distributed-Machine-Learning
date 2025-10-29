@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from src.dijkstra import Dijkstra
+from src.utilis import ensure_dir
 
 #Can create the whole dataset from  start node to max node
 #Also can create the dataset for specific node number
@@ -13,13 +14,14 @@ def save_dataset(dataset, file_path, append=False):
         df.to_csv(file_path, index=False)
 
 def generatedataset(*args):
-
+    ensure_dir("datasets")
     if len(args) < 0 or len(args) > 3:
         return 0
     elif len(args) == 3:
         start_node = args[0]
         max_node = args[1]
         max_predict_node = args[2]
+
         file_path = f"datasets/dataset{start_node}_{max_node}_{max_predict_node}.csv"
         if os.path.exists(file_path):
             os.remove(file_path)
