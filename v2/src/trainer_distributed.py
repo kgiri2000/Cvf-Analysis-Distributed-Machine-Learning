@@ -28,84 +28,59 @@ def setup_tf_config(cluster_hosts=None, rank=None):
     return tf_config
 
 
-def train_distributed(dataset_path, input_size, epochs=50, batch_size=32, 
-                     learning_rate=0.001, cluster_hosts=None, rank=None):
-    
-    # Configure cluster
+def train_distributed(dataset_path, input_size, epochs=50, batch_size=32, learning_rate=0.001,
+                      cluster_hosts=None, rank=None):
+
+
     tf_config = setup_tf_config(cluster_hosts, rank)
     worker_rank = tf_config["task"]["index"]
-    num_workers = len(tf_config['cluster']['worker'])
-    
+    num_workers = len(tf_config["cluster"]["worker"])
     print(f"[Worker {worker_rank}] Using {num_workers} worker(s)")
 
-    # Initialize strategy FIRST
-    strategy = tf.distribute.MultiWorkerMirroredStrategy()
-    
-    print(f"[Worker {worker_rank}] Number of replicas: {strategy.num_replicas_in_sync}")
 
-    # Load data (happens on each worker independently)
     X_train, X_test, y_train, y_test, scaler_X = load_dataset(dataset_path, input_size)
-    
-    # Convert to float32
-    X_train = X_train.astype('float32')
-    X_test = X_test.astype('float32')
-    y_train = y_train.astype('float32')
-    y_test = y_test.astype('float32')
 
-    # Per-replica batch size
-    per_replica_batch = batch_size
 
-    # Dataset creation function for distribution
-    def dataset_fn(input_context):
+    def make_ds(X, y, training: bool):
+        X = tf.convert_to_tensor(X, dtype=tf.float32)
+        y = tf.convert_to_tensor(y, dtype=tf.float32)
 
-        batch_size_per_replica = input_context.get_per_replica_batch_size(per_replica_batch)
-        
-        # Training dataset
-        train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-        train_ds = train_ds.shuffle(1024, seed=42)
-        train_ds = train_ds.batch(batch_size_per_replica, drop_remainder=False)
-        train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
-        
-        # Validation dataset
-        val_ds = tf.data.Dataset.from_tensor_slices((X_test, y_test))
-        val_ds = val_ds.batch(batch_size_per_replica, drop_remainder=False)
-        val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
-        
-        return train_ds, val_ds
+        ds = tf.data.Dataset.from_tensor_slices((X, y))
+        if training:
+            ds = ds.shuffle(10_000, reshuffle_each_iteration=True)
+        ds = ds.batch(batch_size, drop_remainder=True)
+        ds = ds.prefetch(tf.data.AUTOTUNE)
 
-    # Create distributed datasets
-    train_dataset = strategy.distribute_datasets_from_function(
-        lambda ctx: dataset_fn(ctx)[0]
-    )
-    
-    val_dataset = strategy.distribute_datasets_from_function(
-        lambda ctx: dataset_fn(ctx)[1]
-    )
 
-    # Build model inside distributed scope
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+        ds = ds.with_options(options)
+        return ds
+
+    train_ds = make_ds(X_train, y_train, training=True)
+    val_ds   = make_ds(X_test,  y_test,  training=False)
+
+
+    strategy = tf.distribute.MultiWorkerMirroredStrategy()
     with strategy.scope():
-        model = build_feed_forward_model(
-            X_train.shape[1], 
-            y_train.shape[1], 
-            learning_rate
-        )
+        model = build_feed_forward_model(X_train.shape[1], y_train.shape[1], learning_rate)
 
-    # Set verbosity
-    verbose = 1 if worker_rank == 0 else 0
 
-    # Train the model
     history = model.fit(
-        train_dataset,
-        validation_data=val_dataset,
+        train_ds,
+        validation_data=val_ds,
         epochs=epochs,
-        verbose=verbose
+        verbose=2 if worker_rank == 0 else 0,
     )
 
-    # Evaluation
-    loss, mae = model.evaluate(val_dataset, verbose=verbose)
-    print(f"[Worker {worker_rank}] MSE = {loss:.4f}, MAE = {mae:.4f}")
+
+    loss, mae = model.evaluate(val_ds, verbose=0)
+    print(f"[Worker {worker_rank}] MSE={loss:.4f}, MAE={mae:.4f}")
+
 
     if worker_rank == 0:
-        print("[Worker 0] Training complete. Model will be saved by main process.")
-    
+        from src.utils import save_models  
+        print("Chief node saving canonical artifacts...")
+        save_models(model, scaler_X, history, output_dir="models/distributed_worker0")
+
     return model, history, scaler_X
