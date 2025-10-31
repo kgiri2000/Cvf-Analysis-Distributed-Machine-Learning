@@ -49,7 +49,7 @@ def train_distributed(dataset_path, input_size, epochs=50, batch_size = 32, lear
     with strategy.scope():
         model = build_feed_forward_model(X_train.shape[1], y_train.shape[1], learning_rate)
     train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-    train_dataset = train_dataset.batch(batch_size).shuffle(buffer_size=1024)
+    train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
 
     val_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test))
     val_dataset = val_dataset.batch(batch_size)
@@ -58,12 +58,11 @@ def train_distributed(dataset_path, input_size, epochs=50, batch_size = 32, lear
         train_dataset,
         validation_data= val_dataset,
         epochs = epochs,
-        batch_size= batch_size,
         verbose=2 if worker_rank == 0 else 0
     )
 
     #Exaluation and save
-    loss, mae = model.evaluate(X_test, y_test, verbose=0)
+    loss, mae = model.evaluate(val_dataset, verbose=0)
     print(f"[Worker {worker_rank}] MSE = {loss: .4f}, MAE: {mae: .4f}")
 
     if worker_rank == 0:
