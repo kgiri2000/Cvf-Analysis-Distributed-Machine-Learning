@@ -95,7 +95,6 @@ def train_distributed(dataset_path, input_size, epochs=50, batch_size=32, learni
         train_ds,
         validation_data=val_ds,
         epochs=epochs,
-        steps_per_epoch=steps_per_epoch, 
         verbose=2 if worker_rank == 0 else 0,
     )
     
