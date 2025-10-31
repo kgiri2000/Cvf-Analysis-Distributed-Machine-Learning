@@ -48,11 +48,15 @@ def train_distributed(dataset_path, input_size, epochs=50, batch_size = 32, lear
     #Build modle inside distributed scope
     with strategy.scope():
         model = build_feed_forward_model(X_train.shape[1], y_train.shape[1], learning_rate)
-    
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+    train_dataset = train_dataset.batch(batch_size).shuffle(buffer_size=1024)
+
+    val_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test))
+    val_dataset = val_dataset.batch(batch_size)
     #Train the model
     history = model.fit(
-        X_train, y_train,
-        validation_data= (X_test, y_test),
+        train_dataset,
+        validation_data= val_dataset,
         epochs = epochs,
         batch_size= batch_size,
         verbose=2 if worker_rank == 0 else 0
