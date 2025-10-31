@@ -4,7 +4,7 @@ import socket
 import tensorflow as tf
 from src.data_loader import load_dataset
 from src.model_builder import build_feed_forward_model
-from src.utils import save_models
+from src.utilis import save_models
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")  
 
