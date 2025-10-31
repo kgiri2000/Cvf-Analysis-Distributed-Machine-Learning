@@ -41,18 +41,34 @@ def train_distributed(dataset_path, input_size, epochs=50, batch_size = 32, lear
     #initialize strategy
     strategy = tf.distribute.MultiWorkerMirroredStrategy()
     worker_rank = tf_config["task"]["index"]
-
+    per_worker_batch_size = batch_size
 
     print(f"[Worker {worker_rank}] Using {len(tf_config['cluster']['worker'])} worker(s)")
 
     #Build modle inside distributed scope
     with strategy.scope():
-        model = build_feed_forward_model(X_train.shape[1], y_train.shape[1], learning_rate)
-    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-    train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
+        model = build_feed_forward_model(
+            X_train.shape[1],
+            y_train.shape[1], 
+            learning_rate
+        )
+        def make_datasets():
+            train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+            train_ds = train_ds.shuffle(buffer_size=1024)
+            train_ds = train_ds.batch(per_worker_batch_size)
+            train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
 
-    val_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test))
-    val_dataset = val_dataset.batch(batch_size)
+            #Validation dataset
+            val_ds = tf.data.Dataset.from_tensor_slices((X_test, y_test))
+            val_ds = val_ds.batch(per_worker_batch_size)
+            val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
+
+            return train_ds, val_ds
+        train_dataset, val_dataset =  make_datasets()
+        
+
+        
+
     #Train the model
     history = model.fit(
         train_dataset,
