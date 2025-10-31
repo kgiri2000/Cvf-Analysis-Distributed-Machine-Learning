@@ -27,6 +27,7 @@ def setup_tf_config(cluster_hosts=None, rank=None):
     }
     os.environ["TF_CONFIG"] = json.dumps(tf_config)
     print(f"TF_CONFIG created: {tf_config}")
+    return tf_config
 
 def train_distributed(dataset_path, input_size, epochs=50, batch_size = 32, learning_rate=0.001, cluster_hosts= None, rank=None):
     #Distributed feed-forward traning using MultiWorkerMirrorStrategy
