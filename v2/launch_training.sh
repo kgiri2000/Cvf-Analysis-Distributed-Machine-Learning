@@ -97,7 +97,7 @@ JSON
 
     # Launch WORKER
     #| tee '$REMOTE_CODE_DIR/logs/chief.log'
-    echo "⚙️  Starting worker on $WORKER1_HOST..."
+    echo "Starting worker on $WORKER1_HOST..."
     ssh "$SSH_USER@$WORKER1_HOST" "
         mkdir -p '$REMOTE_CODE_DIR/logs';
         cd '$REMOTE_CODE_DIR';
