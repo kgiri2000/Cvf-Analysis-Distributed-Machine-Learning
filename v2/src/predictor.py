@@ -4,15 +4,15 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import pandas as pd
-from src.utilis import ensure_dir
+from src.utils import ensure_dir
 
 def load_model_and_scalar(model_dir, scaler_path):
     model_dir = "models/feed_forward_model"
     scaler_path= "models/scaler.pkl"
 
-    """
-    Load trained Tensorflow model and scalar from the disk
-    """
+
+    #Load trained Tensorflow model and scalar from the disk
+
     if not os.path.exists(model_dir):
         raise FileNotFoundError(f"Model directory not found: {model_dir}")
     if not os.path.exists(scaler_path):

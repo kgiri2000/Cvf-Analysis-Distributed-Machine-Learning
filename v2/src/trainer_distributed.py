@@ -1,104 +1,145 @@
-import os
-import json
-import socket
+"""
+trainer_distributed.py
+Distributed TensorFlow training with per-epoch logging (GPU-ready).
+Can be imported and called by main.py --mode distributed
+or executed via launch_distributed.sh.
+"""
+
+import os, json, time
 import tensorflow as tf
-from src.data_loader import load_dataset
-from src.model_builder import build_feed_forward_model
-from src.utilis import save_models
+from src.data_loader import make_datasets_with_scaler
+from src.model_builder import build_model, compile_model
+from src.utils import ensure_dir, result
 
-os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+def train_distributed(
+    dataset_path: str,
+    input_size: int,
+    epochs: int = 10,
+    batch_size: int = 256,
+    learning_rate: float = 0.001,
+    cluster_hosts: list[str] = None,
+    rank: int = 0
+):
+    #Run multi-worker distributed training with per-epoch progress printing.
 
+    # Environment + Strategy
 
-def setup_tf_config(cluster_hosts=None, rank=None):
-    if "TF_CONFIG" in os.environ:
-        print("Using existing TF_CONFIG from environment")
-        return json.loads(os.environ["TF_CONFIG"])
+    tf_conf = os.environ.get("TF_CONFIG")
+    if not tf_conf:
+        raise RuntimeError("TF_CONFIG not set (must be run via launcher or with env set).")
 
-    if not cluster_hosts:
-        local_ip = socket.gethostbyname(socket.gethostname())
-        cluster_hosts = [f"{local_ip}:12345"]
-    if rank is None:
-        rank = 0
+    task = json.loads(tf_conf)["task"]
+    task_type = task.get("type", "worker")
+    task_index = task.get("index", 0)
+    worker_id = f"[{task_type}:{task_index}]"
+    is_chief = (task_type == "chief") or (task_type == "worker" and task_index == 0)
 
-    tf_config = {
-        "cluster": {"worker": cluster_hosts},
-        "task": {"type": "worker", "index": rank},
-    }
-    os.environ["TF_CONFIG"] = json.dumps(tf_config)
-    print(f"TF_CONFIG created: {tf_config}")
-    return tf_config
+    # GPU setup
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        for g in gpus:
+            tf.config.experimental.set_memory_growth(g, True)
+        from tensorflow.keras import mixed_precision
+        mixed_precision.set_global_policy('mixed_float16')
 
-
-def make_dataset_fn(X, y, batch_size, is_training=True):
-    def dataset_fn(input_context):
-        per_replica_batch = input_context.get_per_replica_batch_size(batch_size)
-
-        # Create dataset *outside* the graph (from tensors, not numpy arrays)
-        X_local = tf.convert_to_tensor(X, dtype=tf.float32)
-        y_local = tf.convert_to_tensor(y, dtype=tf.float32)
-        ds = tf.data.Dataset.from_tensor_slices((X_local, y_local))
-
-        ds = ds.shard(
-            num_shards=input_context.num_input_pipelines,
-            index=input_context.input_pipeline_id,
-        )
-
-        if is_training:
-            ds = ds.shuffle(10000, seed=42, reshuffle_each_iteration=True)
-        ds = ds.batch(per_replica_batch, drop_remainder=is_training)
-        ds = ds.prefetch(tf.data.AUTOTUNE)
-        return ds
-
-    return dataset_fn
-
-
-def train_distributed(dataset_path, input_size, epochs=50, batch_size=32, learning_rate=0.001,
-                      cluster_hosts=None, rank=None):
-
-    tf_config = setup_tf_config(cluster_hosts, rank)
-    worker_rank = tf_config["task"]["index"]
-    num_workers = len(tf_config["cluster"]["worker"])
-    print(f"[Worker {worker_rank}] Initialized (total workers: {num_workers})")
-
-    # Strategy setup
     strategy = tf.distribute.MultiWorkerMirroredStrategy()
-    print(f"[Worker {worker_rank}] Strategy initialized (replicas: {strategy.num_replicas_in_sync})")
+    print(f"{worker_id} Initialized with {strategy.num_replicas_in_sync} replicas", flush=True)
 
-    # Load data on each worker (same file, TF will shard automatically)
-    X_train, X_test, y_train, y_test, scaler_X = load_dataset(dataset_path, input_size)
-    X_train, X_test = X_train.astype("float32"), X_test.astype("float32")
-    y_train, y_test = y_train.astype("float32"), y_test.astype("float32")
-    print(f"[Worker {worker_rank}] Dataset loaded: X_train={X_train.shape}, y_train={y_train.shape}")
 
-    # Proper distributed datasets
-    train_ds = strategy.distribute_datasets_from_function(
-        make_dataset_fn(X_train, y_train, batch_size, is_training=True)
-    )
-    val_ds = strategy.distribute_datasets_from_function(
-        make_dataset_fn(X_test, y_test, batch_size, is_training=False)
-    )
+    #Data loading and scaling
 
+    PER_REPLICA_BS = batch_size
+    GLOBAL_BS = PER_REPLICA_BS * strategy.num_replicas_in_sync
+
+    train_ds, val_ds, scaler = make_datasets_with_scaler(dataset_path, GLOBAL_BS)
+    dist_train = strategy.experimental_distribute_dataset(train_ds)
+    dist_val = strategy.experimental_distribute_dataset(val_ds)
+
+
+    #Model & training setup
+ 
+    num_features = input_size - 1
     with strategy.scope():
-        model = build_feed_forward_model(X_train.shape[1], y_train.shape[1], learning_rate)
+        model = build_model(num_features)
+        model, optimizer, loss_fn, train_loss, train_mae, val_loss, val_mae = compile_model(model, lr=learning_rate)
 
-    print(f"[Worker {worker_rank}] Starting distributed training...")
+        @tf.function
+        def train_step(batch):
+            x, y = batch
+            y = tf.expand_dims(y, -1)
+            with tf.GradientTape() as tape:
+                preds = model(x, training=True)
+                per_ex_loss = loss_fn(y, preds)
+                loss = tf.nn.compute_average_loss(per_ex_loss, global_batch_size=GLOBAL_BS)
+            grads = tape.gradient(loss, model.trainable_variables)
+            optimizer.apply_gradients(zip(grads, model.trainable_variables))
+            train_loss.update_state(loss)
+            train_mae.update_state(y, preds)
 
-    history = model.fit(
-        train_ds,
-        validation_data=val_ds,
-        epochs=epochs,
-        verbose=2 if worker_rank == 0 else 0,
-    )
+        @tf.function
+        def val_step(batch):
+            x, y = batch
+            y = tf.expand_dims(y, -1)
+            preds = model(x, training=False)
+            per_ex_loss = loss_fn(y, preds)
+            loss = tf.nn.compute_average_loss(per_ex_loss, global_batch_size=GLOBAL_BS)
+            val_loss.update_state(loss)
+            val_mae.update_state(y, preds)
 
-    loss, mae = model.evaluate(val_ds, verbose=0)
-    print(f"[Worker {worker_rank}] Final Results -> MSE={loss:.4f}, MAE={mae:.4f}")
+        @tf.function
+        def distributed_train_step(batch):
+            strategy.run(train_step, args=(batch,))
 
-    if worker_rank == 0:
-        print("[Worker 0] Saving model and artifacts...")
-        save_models(model, scaler_X, history, output_dir="models/distributed_worker0")
-        model.save("models/feed_forward_model")
-        print("[Worker 0] Model saved successfully")
-    else:
-        print(f"[Worker {worker_rank}] Non-chief worker finished.")
+        @tf.function
+        def distributed_val_step(batch):
+            strategy.run(val_step, args=(batch,))
 
-    return model, history, scaler_X
+
+    #Training Loop (per-epoch logging)
+
+    EPOCHS = epochs
+    STEPS_PER_EPOCH = 100
+    VAL_STEPS = 20
+
+    train_iter, val_iter = iter(dist_train), iter(dist_val)
+    history = {"train_loss": [], "val_loss": [], "train_mae": [], "val_mae": []}
+
+    overall_start = time.perf_counter()
+
+    for epoch in range(EPOCHS):
+        epoch_start = time.perf_counter()
+        train_loss.reset_state(); train_mae.reset_state()
+        val_loss.reset_state(); val_mae.reset_state()
+
+        #Train
+        for _ in range(STEPS_PER_EPOCH):
+            distributed_train_step(next(train_iter))
+
+        # Validate
+        for _ in range(VAL_STEPS):
+            distributed_val_step(next(val_iter))
+
+        #Metrics
+        tl, tm = train_loss.result().numpy(), train_mae.result().numpy()
+        vl, vm = val_loss.result().numpy(), val_mae.result().numpy()
+        epoch_time = time.perf_counter() - epoch_start
+
+        #Store and Print 
+        history["train_loss"].append(tl)
+        history["val_loss"].append(vl)
+        history["train_mae"].append(tm)
+        history["val_mae"].append(vm)
+
+        if is_chief:
+            print(f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {tl:.6f}, MAE: {tm:.6f},Val   Loss: {vl:.6f}, MAE: {vm:.6f}, Time: {epoch_time:.2f}s ", flush=True)
+
+    total_time = time.perf_counter() - overall_start
+
+    #Save results (Chief only)
+
+    if is_chief:
+        ensure_dir("plots")
+        result(history)
+        print(f"\nTraining complete in {total_time:.2f}s")
+
+    return model, history if is_chief else None, scaler

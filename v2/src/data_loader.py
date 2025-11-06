@@ -1,28 +1,44 @@
+"""
+data_loader.py
+Loads CSV data, splits into train/val, applies StandardScaler normalization,
+and returns TensorFlow datasets + the fitted scaler.
+"""
+
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
-import os
-def load_csv(csv_path):
-    if os.path.exists(csv_path):
-        return pd.read_csv(csv_path)
-    else:
-        raise FileNotFoundError(f"{csv_path} not found")
-
-def load_dataset(dataset_path, input_size, test_size= 0.2, random_state=42):
+def make_datasets_with_scaler(data_file, global_batch_size, train_split=0.8):
     """
-    Load dataset from the CSV, split into train/test and apply normalization
-    Returns: (X_train,  X_test, y_train, y_test, scaler_X)
+    Reads CSV, normalizes features with StandardScaler,
+    and returns (train_ds, val_ds, scaler).
     """
-    data = load_csv(dataset_path)
-    X = data.iloc[:, : input_size-1].values # First input size-1 colums are the input fratures
-    y = data.iloc[:, input_size-1:].values
-    scaler_X = StandardScaler()
-    X_scaled = scaler_X.fit_transform(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+    #Load CSV into pandas
+    df = pd.read_csv(data_file)
+    X = df.iloc[:, :-1].values.astype("float32")  # Features
+    y = df.iloc[:, -1].values.astype("float32")   # Labels
 
-    return X_train, X_test, y_train, y_test, scaler_X
+    #Split into train/val
+    split_idx = int(len(X) * train_split)
+    X_train, X_val = X[:split_idx], X[split_idx:]
+    y_train, y_val = y[:split_idx], y[split_idx:]
 
-    
+    #Fit StandardScaler on train features only
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_val = scaler.transform(X_val)
 
+    #Convert to TensorFlow Datasets
+    train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+    val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
 
+    #Shuffle, batch, repeat, prefetch for performance
+    train_ds = (train_ds.shuffle(10000)
+                        .batch(global_batch_size)
+                        .repeat()
+                        .prefetch(tf.data.AUTOTUNE))
+    val_ds = (val_ds.batch(global_batch_size)
+                    .repeat()
+                    .prefetch(tf.data.AUTOTUNE))
+
+    return train_ds, val_ds, scaler
