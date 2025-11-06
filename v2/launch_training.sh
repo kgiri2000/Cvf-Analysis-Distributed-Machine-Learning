@@ -29,6 +29,8 @@ EPOCHS="${EPOCHS_IN:-$EPOCHS}"
 BATCH_SIZE="${BATCH_IN:-$BATCH_SIZE}"
 LR="${LR_IN:-$LR}"
 INPUT_SIZE="${INPUT_IN:-$INPUT_SIZE}"
+DATASET_NAME = $(basename "$DATA_FILE" .csv)
+RUN_ID = $(date + "%Y%m%d_%H%M%S" )
 
 
 #Single-node GPU training
@@ -36,7 +38,7 @@ INPUT_SIZE="${INPUT_IN:-$INPUT_SIZE}"
 if [[ "$MODE_CHOICE" == "1" ]]; then
     echo "Launching SINGLE-NODE GPU training locally..."
     source ../.venv/bin/activate
-    LOG_FILE="logs/local_gpu.log"
+    LOG_FILE= "$REMOTE_CODE_DIR/logs/local_gpu_${DATASET_NAME}_${RUN_ID}.log"
 
     python3 main.py --mode local-gpu \
         --data "$DATA_FILE" \
@@ -55,28 +57,33 @@ fi
 if [[ "$MODE_CHOICE" == "2" ]]; then
     echo "Launching DISTRIBUTED multi-worker training..."
     echo "Chief:  $CHIEF_HOST"
-    echo "Worker: $WORKER1_HOST"
+    echo "Worker: ${WORKERS[*]}"
+    CHIEF_LOG="$REMOTE_CODE_DIR/logs/chief_${DATASET_NAME}_${RUN_ID}.log"
 
     # Sync files (ensure same code and env everywhere)
-    for HOST in "$CHIEF_HOST" "$WORKER1_HOST"; do
+    for HOST in "$CHIEF_HOST" "${WORKERS[@]}"; do
         echo "Syncing code to $HOST ..."
         ssh "$SSH_USER@$HOST" "mkdir -p '$REMOTE_CODE_DIR/logs' '$REMOTE_CODE_DIR/models' '$REMOTE_CODE_DIR/plots'"
         scp -r src "$SSH_USER@$HOST:$REMOTE_CODE_DIR/"
         scp main.py cluster.env "$SSH_USER@$HOST:$REMOTE_CODE_DIR/"
     done
 
-    # Create TF_CONFIG
+    # Create TF_CONFIG JSON DYNAMICALLY
+    #{mteverest1.uwyo.edu:12345, ..., ....}
+    WORKER_ENTRIES=""
+    for w in "${WORKERS[@]}"; do
+        WORKER_ENTRIES+="\"$w:$PORT\","
+    done
+    WORKER_ENTRIES="${WORKER_ENTRIES%,}"  # remove trailing comma
+
     TFCONF_CHIEF=$(cat <<JSON
-{"cluster":{"chief":["$CHIEF_HOST:$PORT"],"worker":["$WORKER1_HOST:$PORT"]},"task":{"type":"chief","index":0}}
-JSON
-)
-    TFCONF_WORKER0=$(cat <<JSON
-{"cluster":{"chief":["$CHIEF_HOST:$PORT"],"worker":["$WORKER1_HOST:$PORT"]},"task":{"type":"worker","index":0}}
+{"cluster":{"chief":["$CHIEF_HOST:$PORT"],"worker":[${WORKER_ENTRIES}]},"task":{"type":"chief","index":0}}
 JSON
 )
 
     # Launch CHIEF
     echo "Starting chief on $CHIEF_HOST..."
+    #> '$REMOTE_CODE_DIR/logs/chief.log' 2>&1 &
     ssh "$SSH_USER@$CHIEF_HOST" "
         mkdir -p '$REMOTE_CODE_DIR/logs';
         cd '$REMOTE_CODE_DIR';
@@ -89,35 +96,43 @@ JSON
             --batch_size $BATCH_SIZE \
             --learning_rate $LR \
             --rank 0 \
-            --cluster '$CHIEF_HOST' '$WORKER1_HOST' \
-            > '$REMOTE_CODE_DIR/logs/chief.log' 2>&1 &
+            --cluster '$CHIEF_HOST' '${WORKERS[*]}' \
+            | tee '$CHIEF_LOG'            
     " 
 
     sleep 3
 
     # Launch WORKER
-    #| tee '$REMOTE_CODE_DIR/logs/chief.log'
-    echo "Starting worker on $WORKER1_HOST..."
-    ssh "$SSH_USER@$WORKER1_HOST" "
-        mkdir -p '$REMOTE_CODE_DIR/logs';
-        cd '$REMOTE_CODE_DIR';
-        source ../.venv/bin/activate;
-        echo 'Running worker on $(hostname)...';
-        TF_CONFIG='$TFCONF_WORKER0' python3 main.py --mode distributed \
-            --data '$DATA_FILE' \
-            --input_size $INPUT_SIZE \
-            --epochs $EPOCHS \
-            --batch_size $BATCH_SIZE \
-            --learning_rate $LR \
-            --rank 1 \
-            --cluster '$CHIEF_HOST' '$WORKER1_HOST' \
-            > '$REMOTE_CODE_DIR/logs/worker.log' 2>&1 &
-
-
-    "
+    for i in "${!WORKERS[@]}"; do
+        WORKER_HOST=${WORKERS[$i]}
+        TFCONF_WORKER=$(cat <<JSON
+{"cluster":{"chief":["$CHIEF_HOST:$PORT"],"worker":[${WORKER_ENTRIES}]},"task":{"type":"worker","index":$i}}
+JSON
+)
+      #| tee '$REMOTE_CODE_DIR/logs/chief.log' 
+        echo "Starting worker $i on $WORKER_HOST..."
+        WORKER_LOG="$REMOTE_CODE_DIR/logs/worker_${i}_${DATASET_NAME}_${RUN_ID}.log"
+        ssh "$SSH_USER@$WORKER_HOST" "
+            mkdir -p '$REMOTE_CODE_DIR/logs';
+            cd '$REMOTE_CODE_DIR';
+            source ../.venv/bin/activate;
+            echo 'Running WORKER-$i on $(hostname)...';
+            TF_CONFIG='$TFCONF_WORKER' python3 main.py --mode distributed \
+                --data '$DATA_FILE' \
+                --input_size $INPUT_SIZE \
+                --epochs $EPOCHS \
+                --batch_size $BATCH_SIZE \
+                --learning_rate $LR \
+                --rank $((i+1)) \
+                --cluster '$CHIEF_HOST' ${WORKERS[*]} \
+                | tee '$WORKER_LOG'
+                
+        "
+    done
 
     echo " Distributed training started!"
-    echo "Logs: $REMOTE_CODE_DIR/logs/chief.log and worker.log"
+    echo "Chief log:   $REMOTE_CODE_DIR/logs/chief.log"
+    echo "Worker logs: $REMOTE_CODE_DIR/logs/worker_*.log"
     echo "To follow chief live:"
     echo "   ssh $SSH_USER@$CHIEF_HOST 'tail -f $REMOTE_CODE_DIR/logs/chief.log'"
     exit 0
