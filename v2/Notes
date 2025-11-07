@@ -1,0 +1,20 @@
+Boost performance:
+export TF_XLA_FLAGS="--tf_xla_auto_jit=2"
+export TF_CPP_MIN_LOG_LEVEL=2
+
+This enables XLA compilation and cleaner logs
+
+Set up SSH keys
+
+Using key authentication
+On host:
+ssh-keygen -t ed25519 -C "kgiri@uwyo" -f ~/.ssh/id_ed25519
+This will create private and public key
+
+Copy the public key to Remote Nodes
+
+cat ~/.ssh/id_ed25519.pub | ssh kgiri@mteverest1.uwyo.edu 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'
+
+Copy to your own authorized_keys
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
