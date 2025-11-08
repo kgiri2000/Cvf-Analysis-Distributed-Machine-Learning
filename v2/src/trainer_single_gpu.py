@@ -54,9 +54,12 @@ def train_single_gpu(
 
 
     # Training Loop (per-epoch logs)
+    total_train_samples = len(train_ds)
+    total_val_samples = len(val_ds)
 
-    STEPS_PER_EPOCH = 100
-    VAL_STEPS = 20
+
+    STEPS_PER_EPOCH = total_train_samples // batch_size
+    VAL_STEPS = total_val_samples // batch_size
     train_iter, val_iter = iter(train_ds), iter(val_ds)
     history = {"train_loss": [], "val_loss": [], "train_mae": [], "val_mae": []}
 
@@ -101,7 +104,7 @@ def train_single_gpu(
         history["train_mae"].append(tm)
         history["val_mae"].append(vm)
 
-        print(f"Epoch {epoch+1}/{epochs},Train Loss: {tl:.6f}, MAE: {tm:.6f},Val Loss: {vl:.6f}, MAE: {vm:.6f},  Time: {epoch_time:.2f}s ")
+        print(f"Epoch {epoch+1}/{epochs},Train Loss: {tl:.6f}, MAE: {tm:.6f},Val Loss: {vl:.6f}, MAE: {vm:.6f},  Time: {epoch_time:.2f}s", flush = True)
 
     total_time = time.perf_counter() - overall_start
 
@@ -112,4 +115,4 @@ def train_single_gpu(
     print(f"Training complete in {total_time:.2f}s")
     print(f"Model + artifacts saved to models/ and plots/")
 
-    return model, history, scaler
+    return model, history, scaler, total_time

@@ -1,5 +1,8 @@
 import argparse
 import os
+import csv, json
+import tensorflow as tf
+
 # from src.data_loader import load_dataset, load_csv
 # from src.model_builder import build_feed_forward_model
 # from src.trainer import train_model, evaluate_model
@@ -12,7 +15,12 @@ from src.trainer_single_gpu import train_single_gpu
 # import torch
 # from src.model_builder_torch import build_feed_forward_model_torch
 # from src.trainer_torch import train_model_torch, evaluate_model_torch
-
+# sysinfo = {
+#     "hostname": platform.node(),
+#     "gpu_count": len(tf.config.list_physical_devices('GPU')),
+#     "cpu_count": psutil.cpu_count(),
+#     "tf_version": tf.__version__,
+# }
 
 def main():
     parser = argparse.ArgumentParser(description="Feed Forward Neural Network Trainer")
@@ -41,7 +49,7 @@ def main():
     if args.mode ==  "local-gpu":
         print("Running local feed forward training..")
 
-        model, history, scaler_X = train_single_gpu(
+        model, history, scaler_X, total_time_ = train_single_gpu(
             dataset_path=args.data,
             input_size=args.input_size,
             epochs=args.epochs,
@@ -93,8 +101,29 @@ def main():
             ensure_dir("models/distributed")
             save_models(model, scaler_X, history, "models/distributed")
 
+    ensure_dir("results")
+    dataset_name = os.path.splitext(os.path.basename(args.data))[0]
+    summary_path = os.path.join("results",  f"summary_{args.mode}_{dataset_name}.csv")
+    param_count = model.count_params()
+    param_size = param_count * 4/(1024**2) # float32
+    metrics= {
+        "dataset": os.path.basename(args.data),
+        "mode": args.mode,
+        "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
+        "input_size": args.input_size,
+        "parameters": param_count,
+        "train_time": total_time_,
+        "train_mse": history["train_mae"][-1],
+        "val_mae": history["val_mae"][-1],
 
-    
+    }
+    #Append to CSV
+    file_exists = os.path.isfile(summary_path)
+    with open(summary_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames = metrics.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(metrics)
 
 
 

@@ -22,9 +22,10 @@ v2/
 
 ### **A. Local single-GPU Training**
 
-- Generate dataset
+#### Generate dataset
     `python3 generatedataset.py`
     This will make two datasets:
     1. Training dataset including data from `generatedataset(starting_node, max_node, max_pred_node)`
     2. Actual data set for prediction from `generatedataset(max_prediction_node,prediction_node)`
+#### 
 

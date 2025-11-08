@@ -15,6 +15,7 @@ def make_datasets_with_scaler(data_file, global_batch_size, train_split=0.8):
     """
     #Load CSV into pandas
     df = pd.read_csv(data_file)
+    
     X = df.iloc[:, :-1].values.astype("float32")  # Features
     y = df.iloc[:, -1].values.astype("float32")   # Labels
 
