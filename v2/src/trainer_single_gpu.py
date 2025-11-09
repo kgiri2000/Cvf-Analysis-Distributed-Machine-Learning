@@ -41,7 +41,7 @@ def train_single_gpu(
 
     #Dataset
     print("\nLoading and preparing dataset...")
-    train_ds, val_ds, scaler = make_datasets_with_scaler(dataset_path, batch_size)
+    train_ds, val_ds, scaler, steps_per_epoch, steps_per_vals = make_datasets_with_scaler(dataset_path, batch_size)
 
 
     #Model setup
@@ -54,12 +54,12 @@ def train_single_gpu(
 
 
     # Training Loop (per-epoch logs)
-    total_train_samples = len(train_ds)
-    total_val_samples = len(val_ds)
+    # total_train_samples = len(train_ds)
+    # total_val_samples = len(val_ds)
 
 
-    STEPS_PER_EPOCH = total_train_samples // batch_size
-    VAL_STEPS = total_val_samples // batch_size
+    STEPS_PER_EPOCH = steps_per_epoch
+    VAL_STEPS = steps_per_vals
     train_iter, val_iter = iter(train_ds), iter(val_ds)
     history = {"train_loss": [], "val_loss": [], "train_mae": [], "val_mae": []}
 

@@ -23,6 +23,10 @@ def make_datasets_with_scaler(data_file, global_batch_size, train_split=0.8):
     split_idx = int(len(X) * train_split)
     X_train, X_val = X[:split_idx], X[split_idx:]
     y_train, y_val = y[:split_idx], y[split_idx:]
+    num_train = len(X_train)
+    num_val = len(X_val)
+    steps_per_epoch = num_train // global_batch_size
+    val_steps = num_val // global_batch_size
 
     #Fit StandardScaler on train features only
     scaler = StandardScaler()
@@ -42,4 +46,4 @@ def make_datasets_with_scaler(data_file, global_batch_size, train_split=0.8):
                     .repeat()
                     .prefetch(tf.data.AUTOTUNE))
 
-    return train_ds, val_ds, scaler
+    return train_ds, val_ds, scaler, steps_per_epoch, val_steps
