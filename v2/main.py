@@ -100,30 +100,30 @@ def main():
         if history:
             ensure_dir("models/distributed")
             save_models(model, scaler_X, history, "models/distributed")
+    if args.mode == "local-gpu":
+        ensure_dir("results")
+        dataset_name = os.path.splitext(os.path.basename(args.data))[0]
+        summary_path = os.path.join("results",  f"summary_{args.mode}_{dataset_name}.csv")
+        param_count = model.count_params()
+        param_size = param_count * 4/(1024**2) # float32
+        metrics= {
+            "dataset": os.path.basename(args.data),
+            "mode": args.mode,
+            "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
+            "input_size": args.input_size,
+            "parameters": param_count,
+            "train_time": total_time_,
+            "train_mse": history["train_mae"][-1],
+            "val_mae": history["val_mae"][-1],
 
-    ensure_dir("results")
-    dataset_name = os.path.splitext(os.path.basename(args.data))[0]
-    summary_path = os.path.join("results",  f"summary_{args.mode}_{dataset_name}.csv")
-    param_count = model.count_params()
-    param_size = param_count * 4/(1024**2) # float32
-    metrics= {
-        "dataset": os.path.basename(args.data),
-        "mode": args.mode,
-        "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
-        "input_size": args.input_size,
-        "parameters": param_count,
-        "train_time": total_time_,
-        "train_mse": history["train_mae"][-1],
-        "val_mae": history["val_mae"][-1],
-
-    }
-    #Append to CSV
-    file_exists = os.path.isfile(summary_path)
-    with open(summary_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames = metrics.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(metrics)
+        }
+        #Append to CSV
+        file_exists = os.path.isfile(summary_path)
+        with open(summary_path, "a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames = metrics.keys())
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(metrics)
 
 
 

@@ -51,7 +51,7 @@ def train_distributed(
     PER_REPLICA_BS = batch_size
     GLOBAL_BS = PER_REPLICA_BS * strategy.num_replicas_in_sync
 
-    train_ds, val_ds, scaler = make_datasets_with_scaler(dataset_path, GLOBAL_BS)
+    train_ds, val_ds, scaler, steps_per_epoch, steps_per_vals = make_datasets_with_scaler(dataset_path, GLOBAL_BS)
     dist_train = strategy.experimental_distribute_dataset(train_ds)
     dist_val = strategy.experimental_distribute_dataset(val_ds)
 
@@ -98,8 +98,8 @@ def train_distributed(
     #Training Loop (per-epoch logging)
 
     EPOCHS = epochs
-    STEPS_PER_EPOCH = 100
-    VAL_STEPS = 20
+    STEPS_PER_EPOCH = steps_per_epoch
+    VAL_STEPS = steps_per_vals
 
     train_iter, val_iter = iter(dist_train), iter(dist_val)
     history = {"train_loss": [], "val_loss": [], "train_mae": [], "val_mae": []}
