@@ -88,7 +88,7 @@ def main():
         save_models(model, scaler_X, history, "models")
 
     elif args.mode == "distributed":
-        model, history, scaler_X = train_distributed(
+        model, history, scaler_X, total_time_ = train_distributed(
             dataset_path=args.data,
             input_size=args.input_size,
             epochs=args.epochs,
@@ -100,22 +100,23 @@ def main():
         if history:
             ensure_dir("models/distributed")
             save_models(model, scaler_X, history, "models/distributed")
-    if args.mode == "local-gpu" or args.mode == "distributed":
+    nodes = args.cluster[0].split(" ")
+
+    if (args.mode == "local-gpu" or args.mode == "distributed") and  history:
         ensure_dir("results")
         dataset_name = os.path.splitext(os.path.basename(args.data))[0]
         summary_path = os.path.join("results",  f"summary_{args.mode}.csv")
         param_count = model.count_params()
         param_size = param_count * 4/(1024**2) # float32
-        number_gpu =  len(args.cluster)
         metrics= {
             "dataset": os.path.basename(args.data),
             "mode": args.mode,
-            "gpu_count": 1 if args.mode == 'local-gpu' else number_gpu
+            "gpu_count": 1 if args.mode == 'local-gpu' else len(nodes),
             "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
             "input_size": args.input_size,
             "parameters": param_count,
             "train_time": total_time_,
-            "train_mse": history["train_mae"][-1],
+            "train_mae": history["train_mae"][-1],
             "val_mae": history["val_mae"][-1],
 
         }

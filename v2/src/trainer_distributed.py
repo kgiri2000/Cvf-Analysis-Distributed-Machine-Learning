@@ -162,4 +162,4 @@ def train_distributed(
         result(history)
         print(f"\nTraining complete in {total_time:.2f}s")
 
-    return model, history if is_chief else None, scaler
+    return model, history if is_chief else None, scaler, total_time
