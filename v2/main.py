@@ -68,7 +68,7 @@ def main():
         print("Running prediction and analysis")
         model, scaler_X = load_models(model_path, scaler_path)
         #true_data = load_csv(args.true_data)
-        predict_and_analyze(args.true_data, args.input_size, model, scaler_X)
+        predict_and_analyze(args.true_data, args.input_size, model, scaler_X, args.mode)
     
 
     elif args.mode == "predict-distributed":
@@ -100,15 +100,17 @@ def main():
         if history:
             ensure_dir("models/distributed")
             save_models(model, scaler_X, history, "models/distributed")
-    if args.mode == "local-gpu":
+    if args.mode == "local-gpu" or args.mode == "distributed":
         ensure_dir("results")
         dataset_name = os.path.splitext(os.path.basename(args.data))[0]
-        summary_path = os.path.join("results",  f"summary_{args.mode}_{dataset_name}.csv")
+        summary_path = os.path.join("results",  f"summary_{args.mode}.csv")
         param_count = model.count_params()
         param_size = param_count * 4/(1024**2) # float32
+        number_gpu =  len(args.cluster)
         metrics= {
             "dataset": os.path.basename(args.data),
             "mode": args.mode,
+            "gpu_count": 1 if args.mode == 'local-gpu' else number_gpu
             "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
             "input_size": args.input_size,
             "parameters": param_count,
@@ -125,7 +127,7 @@ def main():
                 writer.writeheader()
             writer.writerow(metrics)
 
-
+        
 
 
 

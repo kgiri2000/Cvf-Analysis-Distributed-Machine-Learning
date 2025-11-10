@@ -27,7 +27,7 @@ def load_model_and_scalar(model_dir, scaler_path):
     return model, scaler
 
 
-def predict_and_analyze(true_dataset, vector_size, model, scaler_X):
+def predict_and_analyze(true_dataset, vector_size, model, scaler_X, training_type):
 
     # Load the dataset for prediction
     predict_file_path = pd.read_csv(true_dataset)
@@ -60,6 +60,7 @@ def predict_and_analyze(true_dataset, vector_size, model, scaler_X):
     ensure_dir("plots")
     
     # Plot comparison
+    plt_name = f'comparison_count_{training_type}_for_{to_predict_node}_node_using_{vector_size-2}.png'
     plt.figure(figsize=(10, 6))
     plt.scatter(predicted_ar_counts.index, predicted_ar_counts.values, color='blue', label='Predicted Ar Counts')
     plt.scatter(true_ar_counts.index, true_ar_counts.values, color='red', label='True Ar Counts')
@@ -67,6 +68,6 @@ def predict_and_analyze(true_dataset, vector_size, model, scaler_X):
     plt.ylabel('Count')
     plt.title('Comparison of Predicted and True Ar Counts')
     plt.legend()
-    plt.savefig('plots/comparison_counts.png')
+    plt.savefig(f'plots/{plt_name}')
     plt.show()
     print(f"Predictions and analysis complete. Results saved to {predicted_results_file}.")

@@ -9,8 +9,8 @@ def build_model(input_dim):
     #Creates a simple feed-forward regression model.
     model = models.Sequential([
         layers.Input(shape=(input_dim,)),
-        layers.Dense(512, activation='relu'),
-        layers.Dense(256, activation='relu'),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(64, activation='relu'),
         layers.Dense(64, activation='relu'),
         layers.Dense(1, dtype='float32')
     ])
