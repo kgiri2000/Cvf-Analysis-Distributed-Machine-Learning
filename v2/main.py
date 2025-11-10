@@ -77,7 +77,7 @@ def main():
         print("Running prediction and analysis")
         model, scaler_X = load_models(model_path, scaler_path)
         #true_data = load_csv(args.true_data)
-        predict_and_analyze(args.true_data, args.input_size, model, scaler_X)
+        predict_and_analyze(args.true_data, args.input_size, model, scaler_X, args.mode)
 
     elif args.mode == "local-torch":
         print("Running PyTorch FNN ")
@@ -100,10 +100,11 @@ def main():
         if history:
             ensure_dir("models/distributed")
             save_models(model, scaler_X, history, "models/distributed")
-    nodes = args.cluster[0].split(" ")
+
 
     if (args.mode == "local-gpu" or args.mode == "distributed") and  history:
         ensure_dir("results")
+        nodes = args.cluster[0].split(" ") if args.cluster else ['single']
         dataset_name = os.path.splitext(os.path.basename(args.data))[0]
         summary_path = os.path.join("results",  f"summary_{args.mode}.csv")
         param_count = model.count_params()
