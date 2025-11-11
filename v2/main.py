@@ -2,6 +2,7 @@ import argparse
 import os
 import csv, json
 import tensorflow as tf
+import pandas as pd
 
 # from src.data_loader import load_dataset, load_csv
 # from src.model_builder import build_feed_forward_model
@@ -44,7 +45,8 @@ def main():
 
     #Distributed
 
-    args = parser.parse_args()
+
+
 
     if args.mode ==  "local-gpu":
         print("Running local feed forward training..")
@@ -104,6 +106,9 @@ def main():
 
     if (args.mode == "local-gpu" or args.mode == "distributed") and  history:
         ensure_dir("results")
+        args = parser.parse_args()
+        df = pd.read_csv(args.data)
+        rows, cols = df.shape
         nodes = args.cluster[0].split(" ") if args.cluster else ['single']
         dataset_name = os.path.splitext(os.path.basename(args.data))[0]
         summary_path = os.path.join("results",  f"summary_{args.mode}.csv")
@@ -111,6 +116,8 @@ def main():
         param_size = param_count * 4/(1024**2) # float32
         metrics= {
             "dataset": os.path.basename(args.data),
+            "data_size": rows,
+            "vector size": cols
             "mode": args.mode,
             "gpu_count": 1 if args.mode == 'local-gpu' else len(nodes),
             "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
