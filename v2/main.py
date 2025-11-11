@@ -121,7 +121,7 @@ def main():
             "mode": args.mode,
             "gpu_count": 1 if args.mode == 'local-gpu' else len(nodes),
             "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
-            "input_size": args.input_size,
+            "input_size": args.input_size-1,
             "parameters": param_count,
             "train_time": total_time_,
             "train_mae": history["train_mae"][-1],
