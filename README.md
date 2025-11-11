@@ -79,6 +79,8 @@ This will create two datasets using Dijkstra's self-stabilizing algorithm:
 > **Note:** Parameters for both datasets can be configured in `generatedataset.py`
 
 
+
+
 ---
 ### Training
 ```bash
@@ -104,7 +106,11 @@ bash launch_training.sh
 
 ### Results for Single-Node Training
 
-*(Add your results here)*
+| Dataset              | Data Size | Vector Size | Mode       | GPU Count | Input Size | Parameters | Epoch | Batch Size | Train Time (s)      | Train MAE  | Val MAE  |
+|-----------------------|-----------|--------------|------------|------------|-------------|-------------|--------|-------------|---------------------|-------------|-----------|
+| dataset3_10_11.csv    | 88560     | 13           | local-gpu  | 1          | 12          | 14145       | 64     | 300         | 4169.620270916028   | 1.4840283   | 5.493153  |
+| dataset3_10_11.csv    | 88560     | 13           | local-gpu  | 1          | 12          | 14145       | 32     | 300         | 8300.994971105014   | 1.3483082   | 5.075633  |
+
 
 ---
 
@@ -124,7 +130,10 @@ bash launch_training.sh
 
 ### Results for Multi-Worker Distributed Training
 
-*(Add your results here)*
+| Dataset              | Data Size | Vector Size | Mode         | GPU Count | Input Size | Parameters | Epoch | Batch Size | Train Time (s)      | Train MAE  | Val MAE  |
+|-----------------------|-----------|--------------|--------------|------------|-------------|-------------|--------|-------------|---------------------|-------------|-----------|
+| dataset3_10_11.csv    | 88560     | 13           | distributed  | 3          | 12          | 14145       | 64     | 300         | 1165.7153269809787  | 5.3346186   | 12.657734 |
+| dataset3_10_11.csv    | 88560     | 13           | distributed  | 3          | 12          | 14145       | 32     | 300         | 2237.974497382005   | 5.0546665   | 13.969296 |
 
 
 
