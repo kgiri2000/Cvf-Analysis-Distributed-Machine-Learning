@@ -45,6 +45,7 @@ def main():
 
     #Distributed
 
+    args = parser.parse_args()
 
 
 
@@ -106,7 +107,6 @@ def main():
 
     if (args.mode == "local-gpu" or args.mode == "distributed") and  history:
         ensure_dir("results")
-        args = parser.parse_args()
         df = pd.read_csv(args.data)
         rows, cols = df.shape
         nodes = args.cluster[0].split(" ") if args.cluster else ['single']
@@ -117,7 +117,7 @@ def main():
         metrics= {
             "dataset": os.path.basename(args.data),
             "data_size": rows,
-            "vector size": cols
+            "vector size": cols,
             "mode": args.mode,
             "gpu_count": 1 if args.mode == 'local-gpu' else len(nodes),
             "hardware": " 13th Gen Intel(R) Core(TM) i7-13700K & NVIDIA GeForce RTX 4090",
